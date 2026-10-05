@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LyricTyping - 노래 가사 타자 연습</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-container">
+    <!-- 좌측 사이드바: 곡 목록 & 관리 -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">🎵</div>
+        <div>
+          <h1>LyricTyping</h1>
+          <p>노래 가사 타자 연습</p>
+        </div>
+      </div>
+
+      <div class="sidebar-actions">
+        <button id="btnAddSong" class="btn btn-primary btn-full">
+          <span>＋ 새 노래 가사 추가</span>
+        </button>
+        <div class="io-buttons">
+          <button id="btnExportData" class="btn btn-secondary btn-sm" title="가사 및 기록을 JSON 파일로 백업">내보내기(백업)</button>
+          <button id="btnImportData" class="btn btn-secondary btn-sm" title="백업한 JSON 또는 TXT 파일 불러오기">불러오기</button>
+          <input type="file" id="fileImportInput" accept=".json,.txt" hidden />
+        </div>
+      </div>
+
+      <div class="search-box">
+        <input type="text" id="songSearchInput" placeholder="곡 제목 또는 가수 검색..." />
+      </div>
+
+      <div class="song-list-header">
+        <span>수록곡 목록 (<strong id="songCount">0</strong>)</span>
+      </div>
+      <ul id="songList" class="song-list"></ul>
+    </aside>
+
+    <!-- 메인 영역 -->
+    <main class="main-content">
+      <!-- 상단 네비게이션 탭 & 실시간 대시보드 -->
+      <header class="top-bar">
+        <div class="current-song-info">
+          <span class="badge" id="currentSongGenre">노래</span>
+          <h2 id="currentSongTitle">곡을 선택해주세요</h2>
+          <span class="artist" id="currentSongArtist">-</span>
+          <div class="song-QuickActions">
+            <button id="btnEditCurrentSong" class="icon-btn" title="현재 가사 수정">✏️ 수정</button>
+            <button id="btnDeleteCurrentSong" class="icon-btn danger" title="현재 가사 삭제">🗑️ 삭제</button>
+          </div>
+        </div>
+
+        <nav class="mode-tabs">
+          <button class="tab-btn active" data-view="practice">타자 연습</button>
+          <button class="tab-btn" data-view="records">연습 기록 (<span id="recordCountBadge">0</span>)</button>
+        </nav>
+      </header>
+
+      <!-- 뷰 1: 타자 연습 화면 -->
+      <section id="viewPractice" class="view-section active">
+        <!-- 실시간 측정 지표 카드 -->
+        <div class="stats-grid">
+          <div class="stat-card highlight">
+            <div class="stat-label">실시간 타수 (현재 줄/최근)</div>
+            <div class="stat-value"><span id="statRealtimeCpm">0</span> <small>타/분</small></div>
+            <div class="stat-bar-wrap">
+              <div id="realtimeCpmBar" class="stat-bar" style="width: 0%"></div>
+            </div>
+          </div>
+          <div class="stat-card primary">
+            <div class="stat-label">평균 분당 타수 (CPM)</div>
+            <div class="stat-value"><span id="statAvgCpm">0</span> <small>타/분</small></div>
+            <div class="stat-sub">최고 기록: <span id="statBestCpm">-</span> 타/분</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">정확도</div>
+            <div class="stat-value"><span id="statAccuracy">100.0</span><small>%</small></div>
+            <div class="stat-sub">오타: <span id="statTypoCount">0</span>자</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">진행 시간 / 진도율</div>
+            <div class="stat-value"><span id="statElapsedTime">00:00</span></div>
+            <div class="stat-sub">진행: <span id="statLineProgress">0 / 0</span> 줄 (<span id="statPercent">0</span>%)</div>
+          </div>
+        </div>
+
+        <!-- 전체 진행 바 -->
+        <div class="overall-progress-track">
+          <div id="overallProgressBar" class="overall-progress-fill" style="width: 0%"></div>
+        </div>
+
+        <!-- 타자 연습 스테이지 -->
+        <div class="typing-stage">
+          <!-- 연습 옵션 컨트롤 바 -->
+          <div class="stage-toolbar">
+            <div class="toolbar-left">
+              <label class="toggle-option">
+                <input type="checkbox" id="chkAutoAdvance" checked />
+                <span>줄 끝에서 자동 줄바꿈 (또는 Enter/Space)</span>
+              </label>
+              <label class="toggle-option">
+                <input type="checkbox" id="chkSoundEffect" />
+                <span>타건음 효과</span>
+              </label>
+            </div>
+            <div class="toolbar-right">
+              <button id="btnRestartPractice" class="btn btn-secondary btn-sm">🔄 처음부터 다시하기 (Esc)</button>
+            </div>
+          </div>
+
+          <!-- 이전 줄 표시 -->
+          <div class="lyric-line-box prev-line-box">
+            <span class="line-tag">이전 줄</span>
+            <div id="prevLineDisplay" class="lyric-text muted">-</div>
+          </div>
+
+          <!-- 현재 치는 줄 + 입력창 -->
+          <div class="lyric-line-box current-line-box">
+            <div class="line-header">
+              <span class="line-tag active-tag">현재 줄 <strong id="currentLineIndexLabel">1</strong></span>
+              <span id="currentLineStrokeInfo" class="stroke-info">0 / 0 타</span>
+            </div>
+
+            <!-- 글자별 정오표 하이라이트 표시 영역 -->
+            <div id="targetLineRender" class="target-line-render" aria-live="polite"></div>
+
+            <!-- 실제 타이핑 입력창 -->
+            <div class="typing-input-wrapper">
+              <input
+                type="text"
+                id="typingInput"
+                class="typing-input"
+                placeholder="여기를 클릭하고 가사를 따라 타이핑하세요..."
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="off"
+                spellcheck="false"
+              />
+              <span class="enter-hint">Enter ↵</span>
+            </div>
+          </div>
+
+          <!-- 다음 줄 & 다다음 줄 미리보기 -->
+          <div class="lyric-line-box next-line-box">
+            <span class="line-tag">다음 줄</span>
+            <div id="nextLineDisplay" class="lyric-text next">-</div>
+          </div>
+          <div class="lyric-line-box upcoming-line-box">
+            <span class="line-tag">이어지는 가사</span>
+            <div id="upcomingLineDisplay" class="lyric-text muted">-</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 뷰 2: 연습 기록 및 통계 화면 -->
+      <section id="viewRecords" class="view-section">
+        <div class="records-header">
+          <div>
+            <h3>📊 타자 연습 기록</h3>
+            <p>완료한 곡의 평균 분당 타수(CPM), 최고 실시간 타수, 정확도 및 소요 시간이 기록됩니다.</p>
+          </div>
+          <div class="records-actions">
+            <select id="recordFilterSong" class="select-input">
+              <option value="ALL">전체 노래 보기</option>
+            </select>
+            <button id="btnClearRecords" class="btn btn-danger btn-sm">기록 전체 초기화</button>
+          </div>
+        </div>
+
+        <div class="records-summary-cards">
+          <div class="summary-box">
+            <span>총 연습 횟수</span>
+            <strong id="sumTotalPlays">0회</strong>
+          </div>
+          <div class="summary-box">
+            <span>전체 평균 타수</span>
+            <strong id="sumAvgCpm">0 타/분</strong>
+          </div>
+          <div class="summary-box">
+            <span>역대 최고 타수</span>
+            <strong id="sumMaxCpm">0 타/분</strong>
+          </div>
+          <div class="summary-box">
+            <span>평균 정확도</span>
+            <strong id="sumAvgAcc">0.0%</strong>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table class="records-table">
+            <thead>
+              <tr>
+                <th>일시</th>
+                <th>곡 제목</th>
+                <th>가수</th>
+                <th>평균 타수</th>
+                <th>최고 타수</th>
+                <th>정확도</th>
+                <th>소요 시간</th>
+                <th>삭제</th>
+              </tr>
+            </thead>
+            <tbody id="recordsTableBody">
+              <tr>
+                <td colspan="8" class="empty-row">아직 저장된 연습 기록이 없습니다. 노래 한 곡을 끝까지 완주해보세요!</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- 모달 1: 노래 가사 추가 / 수정 -->
+  <div id="songModal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="songModalTitle">새 노래 가사 추가</h3>
+        <button id="btnCloseSongModal" class="close-btn">&times;</button>
+      </div>
+      <form id="songForm" class="modal-body">
+        <input type="hidden" id="songFormId" />
+        <div class="form-row">
+          <div class="form-group">
+            <label for="songTitleInput">곡 제목 *</label>
+            <input type="text" id="songTitleInput" required placeholder="예: 애국가, 밤편지, 사건의 지평선..." />
+          </div>
+          <div class="form-group">
+            <label for="songArtistInput">가수 / 아티스트</label>
+            <input type="text" id="songArtistInput" placeholder="예: 아이유, 윤하, 미상..." />
+          </div>
+          <div class="form-group small">
+            <label for="songGenreInput">분류/태그</label>
+            <input type="text" id="songGenreInput" placeholder="예: 발라드, K-POP, 동요" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <div class="label-with-action">
+            <label for="songLyricsInput">가사 내용 * <small>(줄바꿈 기준으로 한 줄씩 연습합니다. 빈 줄은 자동 제거됩니다.)</small></label>
+            <button type="button" id="btnLoadTxtFile" class="btn btn-secondary btn-xs">📂 .txt 파일에서 가사 불러오기</button>
+            <input type="file" id="txtLyricsFileInput" accept=".txt" hidden />
+          </div>
+          <textarea
+            id="songLyricsInput"
+            rows="12"
+            required
+            placeholder="여기에 노래 가사를 붙여넣거나 입력하세요...&#10;한 줄이 너무 길면 타자 치기 편하도록 적당히 줄바꿈을 해주시면 좋습니다."
+          ></textarea>
+          <div class="lyrics-meta-preview">
+            총 <strong id="previewLineCount">0</strong>줄 / 예상 총 타수: <strong id="previewStrokeCount">0</strong>타
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" id="btnCancelSongModal" class="btn btn-secondary">취소</button>
+          <button type="submit" class="btn btn-primary">저장하기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 모달 2: 완주 결과 팝업 -->
+  <div id="resultModal" class="modal-backdrop hidden">
+    <div class="modal-card result-card">
+      <div class="modal-header">
+        <h3>🎉 타자 연습 완주 완료!</h3>
+        <button id="btnCloseResultModal" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="result-song-banner">
+          <strong id="resSongTitle">-</strong>
+          <span id="resSongArtist">-</span>
+        </div>
+        <div class="result-stats-grid">
+          <div class="res-box primary">
+            <span>평균 분당 타수</span>
+            <strong id="resAvgCpm">0 <small>타/분</small></strong>
+          </div>
+          <div class="res-box">
+            <span>최고 순간 타수</span>
+            <strong id="resPeakCpm">0 <small>타/분</small></strong>
+          </div>
+          <div class="res-box">
+            <span>정확도</span>
+            <strong id="resAccuracy">100%</strong>
+          </div>
+          <div class="res-box">
+            <span>소요 시간 / 총 타수</span>
+            <strong id="resTimeAndStrokes">00:00 (0타)</strong>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btnResultViewRecords" class="btn btn-secondary">기록 보러가기</button>
+        <button id="btnResultRetry" class="btn btn-primary">다시 연습하기 (Enter)</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
