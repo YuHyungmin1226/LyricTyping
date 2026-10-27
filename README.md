@@ -44,6 +44,7 @@
 LyricTyping/
 ├── index.html   # 애플리케이션 메인 레이아웃 (사이드바, 연습 스테이지, 기록 탭, 모달)
 ├── style.css    # 다크 테마 UI 스타일 및 반응형 레이아웃
+├── poems-yun-dongju.js  # 기본 제공 윤동주 시 10편 (공유저작물, 현대 맞춤법)
 ├── app.js       # 한글 자소 분리 타수 계산기, 실시간 CPM 측정 엔진, 가사/기록 CRUD 로직
 └── README.md    # 프로젝트 소개 문서
 ```

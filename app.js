@@ -268,6 +268,7 @@ const state = {
   settings: {
     autoAdvance: true,
     soundEffect: false,
+    seededPacks: [], // 이미 목록에 넣어 준 기본 제공 묶음 (지운 뒤 다시 생기지 않도록 기록)
   },
   currentSongId: null,
   searchQuery: '',
@@ -318,10 +319,27 @@ function loadFromStorage() {
     if (rawSettings) {
       state.settings = { ...state.settings, ...JSON.parse(rawSettings) };
     }
+
+    seedSongPack(YUN_DONGJU_PACK_ID, YUN_DONGJU_POEMS);
   } catch (e) {
     console.error('저장소 로드 오류:', e);
     state.songs = [...DEFAULT_SONGS];
   }
+}
+
+/**
+ * 기본 제공 묶음(예: 윤동주 시)을 목록 끝에 한 번만 추가합니다.
+ * 기존 사용자의 저장 데이터에도 들어가며, 사용자가 지운 글은 다시 생기지 않습니다.
+ */
+function seedSongPack(packId, packSongs) {
+  if (state.settings.seededPacks.includes(packId)) return;
+  const existingIds = new Set(state.songs.map((s) => s.id));
+  packSongs.forEach((song) => {
+    if (!existingIds.has(song.id)) state.songs.push({ ...song });
+  });
+  state.settings.seededPacks = [...state.settings.seededPacks, packId];
+  saveSongs();
+  saveSettings();
 }
 
 function saveSongs() {
